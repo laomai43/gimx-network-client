@@ -1,10 +1,12 @@
 import socket
+import enum
 from enum import IntEnum
 from time import sleep
 import struct
 import sys
+from threading import Timer
 
-DEFAULT_IP = "127.0.0.1"
+DEFAULT_IP = "192.168.3.30"
 DEFAULT_PORT = 51914
 
 
@@ -38,6 +40,7 @@ class Ps4Controls(IntEnum):
     FINGER1 = 146
     FINGER2 = 147
 
+
 class XboxOneControls(IntEnum):
     LEFT_STICK_X = 0
     LEFT_STICK_Y = 1
@@ -68,19 +71,18 @@ class ButtonState(IntEnum):
 
 
 def send_message(ip, port, changes):
-    
     packet = bytearray([0x01, len(changes)])  # type + axis number
-    
+
     for axis, value in changes.items():
         # axis + value (network byte order)
-        packet.extend([axis, (value & 0xff000000) >> 24, (value & 0xff0000) >> 16, (value & 0xff00) >> 8, (value & 0xff)])
+        packet.extend(
+            [axis, (value & 0xff000000) >> 24, (value & 0xff0000) >> 16, (value & 0xff00) >> 8, (value & 0xff)])
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.sendto(packet, (ip, port))
 
 
 def check_status(ip, port):
-    
     packet = bytearray([0x00, 0x00])
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.connect((ip, port))
@@ -95,151 +97,189 @@ def check_status(ip, port):
             return 1
     except socket.error as err:
         print(err)
-    
+
     return 0
 
 
 def main():
-    
     ip = DEFAULT_IP
     port = DEFAULT_PORT
-    
+
     if check_status(ip, port):
         sys.exit(-1)
 
-    changes = { Ps4Controls.PS: ButtonState.PRESSED }
+    changes = {Ps4Controls.PS: ButtonState.PRESSED}
     send_message(ip, port, changes)
     sleep(0.05)
     changes[Ps4Controls.PS] = ButtonState.RELEASED
-    send_message(ip, port, changes)   
+    send_message(ip, port, changes)
     sleep(0.05)
 
-    send_message(ip, port, { Ps4Controls.PS: ButtonState.PRESSED })
+    send_message(ip, port, {Ps4Controls.PS: ButtonState.PRESSED})
     sleep(0.05)
-    send_message(ip, port, { Ps4Controls.PS: ButtonState.RELEASED })   
+    send_message(ip, port, {Ps4Controls.PS: ButtonState.RELEASED})
     sleep(0.05)
-     
+
     for value in [-32767, -127, -1, 0, 1, 127, 32767]:
-        send_message(ip, port, { Ps4Controls.LEFT_STICK_X: value })
+        send_message(ip, port, {Ps4Controls.LEFT_STICK_X: value})
         sleep(0.05)
-    
-    send_message(ip, port, { Ps4Controls.LEFT_STICK_X: 0 })
+
+    send_message(ip, port, {Ps4Controls.LEFT_STICK_X: 0})
     sleep(0.05)
-    
-    send_message(ip, port, { Ps4Controls.LEFT_STICK_X: 127, Ps4Controls.LEFT_STICK_Y: 127 })
+
+    send_message(ip, port, {Ps4Controls.LEFT_STICK_X: 127, Ps4Controls.LEFT_STICK_Y: 127})
     sleep(0.05)
-    
-    send_message(ip, port, { Ps4Controls.LEFT_STICK_X: 0, Ps4Controls.LEFT_STICK_Y: 0 })
+
+    send_message(ip, port, {Ps4Controls.LEFT_STICK_X: 0, Ps4Controls.LEFT_STICK_Y: 0})
     sleep(0.05)
-    
+
     state = {
-        Ps4Controls.LEFT_STICK_X : 127,
-        Ps4Controls.LEFT_STICK_Y : 0,
-        Ps4Controls.RIGHT_STICK_X : 0,
-        Ps4Controls.RIGHT_STICK_Y : 0,
-        Ps4Controls.FINGER1_X : 0,
-        Ps4Controls.FINGER1_Y : 0,
-        Ps4Controls.FINGER2_X : 0,
-        Ps4Controls.FINGER2_Y : 0,
-        Ps4Controls.SHARE : ButtonState.RELEASED,
-        Ps4Controls.OPTIONS : ButtonState.RELEASED,
-        Ps4Controls.PS : ButtonState.RELEASED,
-        Ps4Controls.UP : ButtonState.RELEASED,
-        Ps4Controls.RIGHT : ButtonState.RELEASED,
-        Ps4Controls.DOWN : ButtonState.RELEASED,
-        Ps4Controls.LEFT : ButtonState.RELEASED,
-        Ps4Controls.TRIANGLE : ButtonState.RELEASED,
-        Ps4Controls.CIRCLE : ButtonState.RELEASED,
-        Ps4Controls.CROSS : ButtonState.RELEASED,
-        Ps4Controls.SQUARE : ButtonState.RELEASED,
-        Ps4Controls.L1 : ButtonState.RELEASED,
-        Ps4Controls.R1 : ButtonState.RELEASED,
-        Ps4Controls.L2 : ButtonState.RELEASED,
-        Ps4Controls.R2 : ButtonState.RELEASED,
-        Ps4Controls.L3 : ButtonState.RELEASED,
-        Ps4Controls.R3 : ButtonState.RELEASED,
-        Ps4Controls.TOUCHPAD : ButtonState.RELEASED,
-        Ps4Controls.FINGER1 : ButtonState.RELEASED,
-        Ps4Controls.FINGER2 : ButtonState.RELEASED,
-        }
+        Ps4Controls.LEFT_STICK_X: 127,
+        Ps4Controls.LEFT_STICK_Y: 0,
+        Ps4Controls.RIGHT_STICK_X: 0,
+        Ps4Controls.RIGHT_STICK_Y: 0,
+        Ps4Controls.FINGER1_X: 0,
+        Ps4Controls.FINGER1_Y: 0,
+        Ps4Controls.FINGER2_X: 0,
+        Ps4Controls.FINGER2_Y: 0,
+        Ps4Controls.SHARE: ButtonState.RELEASED,
+        Ps4Controls.OPTIONS: ButtonState.RELEASED,
+        Ps4Controls.PS: ButtonState.RELEASED,
+        Ps4Controls.UP: ButtonState.RELEASED,
+        Ps4Controls.RIGHT: ButtonState.RELEASED,
+        Ps4Controls.DOWN: ButtonState.RELEASED,
+        Ps4Controls.LEFT: ButtonState.RELEASED,
+        Ps4Controls.TRIANGLE: ButtonState.RELEASED,
+        Ps4Controls.CIRCLE: ButtonState.RELEASED,
+        Ps4Controls.CROSS: ButtonState.RELEASED,
+        Ps4Controls.SQUARE: ButtonState.RELEASED,
+        Ps4Controls.L1: ButtonState.RELEASED,
+        Ps4Controls.R1: ButtonState.RELEASED,
+        Ps4Controls.L2: ButtonState.RELEASED,
+        Ps4Controls.R2: ButtonState.RELEASED,
+        Ps4Controls.L3: ButtonState.RELEASED,
+        Ps4Controls.R3: ButtonState.RELEASED,
+        Ps4Controls.TOUCHPAD: ButtonState.RELEASED,
+        Ps4Controls.FINGER1: ButtonState.RELEASED,
+        Ps4Controls.FINGER2: ButtonState.RELEASED,
+    }
     # all controls released except left stick x
     send_message(ip, port, state)
     sleep(0.05)
-    
+
     state[Ps4Controls.LEFT_STICK_X] = 0
     # all controls released
     send_message(ip, port, state)
     sleep(0.05)
-    
+
     full_state = {
-        Ps4Controls.LEFT_STICK_X : 127,
-        Ps4Controls.LEFT_STICK_Y : 127,
-        Ps4Controls.RIGHT_STICK_X : 127,
-        Ps4Controls.RIGHT_STICK_Y : 127,
-        Ps4Controls.FINGER1_X : 919,
-        Ps4Controls.FINGER1_Y : 1919,
-        Ps4Controls.FINGER2_X : 919,
-        Ps4Controls.FINGER2_Y : 1919,
-        Ps4Controls.SHARE : ButtonState.PRESSED,
-        Ps4Controls.OPTIONS : ButtonState.PRESSED,
-        Ps4Controls.PS : ButtonState.PRESSED,
-        Ps4Controls.UP : ButtonState.PRESSED,
-        Ps4Controls.RIGHT : ButtonState.PRESSED,
-        Ps4Controls.DOWN : ButtonState.PRESSED,
-        Ps4Controls.LEFT : ButtonState.PRESSED,
-        Ps4Controls.TRIANGLE : ButtonState.PRESSED,
-        Ps4Controls.CIRCLE : ButtonState.PRESSED,
-        Ps4Controls.CROSS : ButtonState.PRESSED,
-        Ps4Controls.SQUARE : ButtonState.PRESSED,
-        Ps4Controls.L1 : ButtonState.PRESSED,
-        Ps4Controls.R1 : ButtonState.PRESSED,
-        Ps4Controls.L2 : ButtonState.PRESSED,
-        Ps4Controls.R2 : ButtonState.PRESSED,
-        Ps4Controls.L3 : ButtonState.PRESSED,
-        Ps4Controls.R3 : ButtonState.PRESSED,
-        Ps4Controls.TOUCHPAD : ButtonState.PRESSED,
-        Ps4Controls.FINGER1 : ButtonState.PRESSED,
-        Ps4Controls.FINGER2 : ButtonState.PRESSED,
-        }
+        Ps4Controls.LEFT_STICK_X: 127,
+        Ps4Controls.LEFT_STICK_Y: 127,
+        Ps4Controls.RIGHT_STICK_X: 127,
+        Ps4Controls.RIGHT_STICK_Y: 127,
+        Ps4Controls.FINGER1_X: 919,
+        Ps4Controls.FINGER1_Y: 1919,
+        Ps4Controls.FINGER2_X: 919,
+        Ps4Controls.FINGER2_Y: 1919,
+        Ps4Controls.SHARE: ButtonState.PRESSED,
+        Ps4Controls.OPTIONS: ButtonState.PRESSED,
+        Ps4Controls.PS: ButtonState.PRESSED,
+        Ps4Controls.UP: ButtonState.PRESSED,
+        Ps4Controls.RIGHT: ButtonState.PRESSED,
+        Ps4Controls.DOWN: ButtonState.PRESSED,
+        Ps4Controls.LEFT: ButtonState.PRESSED,
+        Ps4Controls.TRIANGLE: ButtonState.PRESSED,
+        Ps4Controls.CIRCLE: ButtonState.PRESSED,
+        Ps4Controls.CROSS: ButtonState.PRESSED,
+        Ps4Controls.SQUARE: ButtonState.PRESSED,
+        Ps4Controls.L1: ButtonState.PRESSED,
+        Ps4Controls.R1: ButtonState.PRESSED,
+        Ps4Controls.L2: ButtonState.PRESSED,
+        Ps4Controls.R2: ButtonState.PRESSED,
+        Ps4Controls.L3: ButtonState.PRESSED,
+        Ps4Controls.R3: ButtonState.PRESSED,
+        Ps4Controls.TOUCHPAD: ButtonState.PRESSED,
+        Ps4Controls.FINGER1: ButtonState.PRESSED,
+        Ps4Controls.FINGER2: ButtonState.PRESSED,
+    }
     # all controls activated
     send_message(ip, port, full_state)
     sleep(0.05)
-    
+
     empty_state = {
-        Ps4Controls.LEFT_STICK_X : 0,
-        Ps4Controls.LEFT_STICK_Y : 0,
-        Ps4Controls.RIGHT_STICK_X : 0,
-        Ps4Controls.RIGHT_STICK_Y : 0,
-        Ps4Controls.FINGER1_X : 0,
-        Ps4Controls.FINGER1_Y : 0,
-        Ps4Controls.FINGER2_X : 0,
-        Ps4Controls.FINGER2_Y : 0,
-        Ps4Controls.SHARE : ButtonState.RELEASED,
-        Ps4Controls.OPTIONS : ButtonState.RELEASED,
-        Ps4Controls.PS : ButtonState.RELEASED,
-        Ps4Controls.UP : ButtonState.RELEASED,
-        Ps4Controls.RIGHT : ButtonState.RELEASED,
-        Ps4Controls.DOWN : ButtonState.RELEASED,
-        Ps4Controls.LEFT : ButtonState.RELEASED,
-        Ps4Controls.TRIANGLE : ButtonState.RELEASED,
-        Ps4Controls.CIRCLE : ButtonState.RELEASED,
-        Ps4Controls.CROSS : ButtonState.RELEASED,
-        Ps4Controls.SQUARE : ButtonState.RELEASED,
-        Ps4Controls.L1 : ButtonState.RELEASED,
-        Ps4Controls.R1 : ButtonState.RELEASED,
-        Ps4Controls.L2 : ButtonState.RELEASED,
-        Ps4Controls.R2 : ButtonState.RELEASED,
-        Ps4Controls.L3 : ButtonState.RELEASED,
-        Ps4Controls.R3 : ButtonState.RELEASED,
-        Ps4Controls.TOUCHPAD : ButtonState.RELEASED,
-        Ps4Controls.FINGER1 : ButtonState.RELEASED,
-        Ps4Controls.FINGER2 : ButtonState.RELEASED,
-        }
+        Ps4Controls.LEFT_STICK_X: 0,
+        Ps4Controls.LEFT_STICK_Y: 0,
+        Ps4Controls.RIGHT_STICK_X: 0,
+        Ps4Controls.RIGHT_STICK_Y: 0,
+        Ps4Controls.FINGER1_X: 0,
+        Ps4Controls.FINGER1_Y: 0,
+        Ps4Controls.FINGER2_X: 0,
+        Ps4Controls.FINGER2_Y: 0,
+        Ps4Controls.SHARE: ButtonState.RELEASED,
+        Ps4Controls.OPTIONS: ButtonState.RELEASED,
+        Ps4Controls.PS: ButtonState.RELEASED,
+        Ps4Controls.UP: ButtonState.RELEASED,
+        Ps4Controls.RIGHT: ButtonState.RELEASED,
+        Ps4Controls.DOWN: ButtonState.RELEASED,
+        Ps4Controls.LEFT: ButtonState.RELEASED,
+        Ps4Controls.TRIANGLE: ButtonState.RELEASED,
+        Ps4Controls.CIRCLE: ButtonState.RELEASED,
+        Ps4Controls.CROSS: ButtonState.RELEASED,
+        Ps4Controls.SQUARE: ButtonState.RELEASED,
+        Ps4Controls.L1: ButtonState.RELEASED,
+        Ps4Controls.R1: ButtonState.RELEASED,
+        Ps4Controls.L2: ButtonState.RELEASED,
+        Ps4Controls.R2: ButtonState.RELEASED,
+        Ps4Controls.L3: ButtonState.RELEASED,
+        Ps4Controls.R3: ButtonState.RELEASED,
+        Ps4Controls.TOUCHPAD: ButtonState.RELEASED,
+        Ps4Controls.FINGER1: ButtonState.RELEASED,
+        Ps4Controls.FINGER2: ButtonState.RELEASED,
+    }
     # all controls released
     send_message(ip, port, empty_state)
     sleep(0.05)
 
 
-if __name__ == "__main__":
-    main()
+def click(button, ip=DEFAULT_IP, port=DEFAULT_PORT):
+    changes = {button: ButtonState.PRESSED}
+    send_message(ip, port, changes)
+    sleep(0.05)
+    changes[button] = ButtonState.RELEASED
+    send_message(ip, port, changes)
 
+
+def press(button, ip=DEFAULT_IP, port=DEFAULT_PORT):
+    changes = {button: ButtonState.PRESSED}
+    send_message(ip, port, changes)
+
+
+def release(button, ip=DEFAULT_IP, port=DEFAULT_PORT):
+    changes = {button: ButtonState.RELEASED}
+    send_message(ip, port, changes)
+
+
+def turn(speed=200, time=2, ip=DEFAULT_IP, port=DEFAULT_PORT):
+    button = Ps4Controls.RIGHT_STICK_X
+    changes = {button: speed}
+    send_message(ip, port, changes)
+    if speed == 0:
+        return
+    for i in range(4):
+        Timer(time + 0.05 * i, turn, (0,)).start()
+
+
+def move(button=Ps4Controls.LEFT_STICK_X, speed=200, time=2, ip=DEFAULT_IP, port=DEFAULT_PORT):
+    changes = {button: speed}
+    send_message(ip, port, changes)
+    changes[button] = 0
+    # Timer(time, send_message, (ip, port, changes)).start()
+    # send_message(ip, port, changes)
+
+
+if __name__ == "__main__":
+    # main()
+    # move(speed=-200)
+    # move(button=Ps4Controls.LEFT_STICK_Y)
+    # move(speed=0)
+    click(Ps4Controls.PS)
